@@ -124,7 +124,20 @@ namespace SoxSharp
       try
       {
         soxProcess_.StartInfo.RedirectStandardOutput = true;
-        soxProcess_.StartInfo.Arguments = "--info " + inputFile;
+
+        if (inputFile.Contains(" "))
+        {
+          if ((Environment.OSVersion.Platform == PlatformID.Win32NT) ||
+              (Environment.OSVersion.Platform == PlatformID.Win32Windows) ||
+              (Environment.OSVersion.Platform == PlatformID.Win32S) ||
+              (Environment.OSVersion.Platform == PlatformID.WinCE))
+            soxProcess_.StartInfo.Arguments = "--info \"" + inputFile + "\"";
+          else
+            soxProcess_.StartInfo.Arguments = "--info '" + inputFile + "'";
+        }
+        else
+          soxProcess_.StartInfo.Arguments = "--info " + inputFile;
+
         soxProcess_.Start();
 
         LastCommand = Path + " " + soxProcess_.StartInfo.Arguments;
@@ -150,7 +163,7 @@ namespace SoxSharp
               UInt16 channels = Convert.ToUInt16(double.Parse(matchInfo.Groups[1].Value, CultureInfo.InvariantCulture));
               UInt32 sampleRate = Convert.ToUInt32(double.Parse(matchInfo.Groups[2].Value, CultureInfo.InvariantCulture));
               UInt16 sampleSize = Convert.ToUInt16(double.Parse(new string(matchInfo.Groups[3].Value.Where(Char.IsDigit).ToArray()), CultureInfo.InvariantCulture));
-              TimeSpan duration = TimeSpan.ParseExact(matchInfo.Groups[4].Value, @"hh\:mm\:ss\.ff", CultureInfo.InvariantCulture);
+              TimeSpan duration = Utils.TimeSpanFromString(matchInfo.Groups[4].Value);
               UInt64 size = FormattedSize.ToUInt64(matchInfo.Groups[5].Value);
               UInt32 bitRate = FormattedSize.ToUInt32(matchInfo.Groups[6].Value);
               string encoding = matchInfo.Groups[7].Value;
@@ -160,12 +173,12 @@ namespace SoxSharp
 
             catch (Exception ex)
             {
-              throw new SoxException("Cannot parse SoX output", ex);
+              throw new SoxUnexpectedOutputException(output, ex);
             }
           }
         }
 
-        throw new SoxException("Unexpected output from SoX");
+        throw new SoxUnexpectedOutputException(output != null ? output : "No output received");
       }
 
       finally
@@ -453,6 +466,10 @@ namespace SoxSharp
           case CombinationType.Sequence:
             args.Add("--combine sequence");
             break;
+
+          default:
+            // Do nothing.
+            break;
         }
 
         args.Add("--show-progress");
@@ -471,8 +488,21 @@ namespace SoxSharp
 
         args.Add(Output.ToString());
 
-        if (outputFile != null)
-          args.Add(outputFile);
+        if (!string.IsNullOrEmpty(outputFile))
+        {
+          if (outputFile.Contains(" "))
+          {
+            if ((Environment.OSVersion.Platform == PlatformID.Win32NT) ||
+                (Environment.OSVersion.Platform == PlatformID.Win32Windows) ||
+                (Environment.OSVersion.Platform == PlatformID.Win32S) ||
+                (Environment.OSVersion.Platform == PlatformID.WinCE))
+              args.Add("\"" + outputFile + "\"");
+            else
+              args.Add("'" + outputFile + "'");
+          }
+          else
+            args.Add(outputFile);
+        }
         else
           args.Add("--null");
 
@@ -539,8 +569,8 @@ namespace SoxSharp
             try
             {
               UInt16 progress = Convert.ToUInt16(double.Parse(matchProgress.Groups[1].Value, CultureInfo.InvariantCulture));
-              TimeSpan processed = TimeSpan.ParseExact(matchProgress.Groups[2].Value, @"hh\:mm\:ss\.ff", CultureInfo.InvariantCulture);
-              TimeSpan remaining = TimeSpan.ParseExact(matchProgress.Groups[3].Value, @"hh\:mm\:ss\.ff", CultureInfo.InvariantCulture);
+              TimeSpan processed = Utils.TimeSpanFromString(matchProgress.Groups[2].Value);
+              TimeSpan remaining = Utils.TimeSpanFromString(matchProgress.Groups[3].Value);
               UInt64 outputSize = FormattedSize.ToUInt64(matchProgress.Groups[4].Value);
 
               ProgressEventArgs eventArgs = new ProgressEventArgs(progress, processed, remaining, outputSize);
@@ -552,16 +582,9 @@ namespace SoxSharp
               return;
             }
 
-            catch (OverflowException)
-            {
-              // SoX v14.3.1 (at least) sometimes report invalid time values (i.e. 06:31:60.00).
-              // Just ignore this progress update.
-              return;
-            }
-
             catch (Exception ex)
             {
-              throw new SoxException("Unexpected output from SoX", ex);
+              throw new SoxUnexpectedOutputException(received.Data, ex);
             }
           }
         }
@@ -592,10 +615,10 @@ namespace SoxSharp
     }
 
 
-    protected bool CheckForLogMessage(string data)
+    private void CheckForLogMessage(string data)
     {
       if (string.IsNullOrEmpty(data))
-        return false;
+        return;
 
       Match logMatch = SoxProcess.LogRegex.Match(data);
 
@@ -622,11 +645,7 @@ namespace SoxSharp
           if (String.IsNullOrEmpty(lastErrorSource_))
             lastErrorSource_ = source;
         }
-
-        return true;
       }
-
-      return false;
     }
 
 

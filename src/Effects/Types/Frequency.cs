@@ -40,6 +40,9 @@ namespace SoxSharp.Effects.Types
 
           case FrequencyUnits.KHz:
             return value_.ToString(CultureInfo.InvariantCulture) + "k";
+
+          default:            
+            break; // Do nothing.
         }
       }
 

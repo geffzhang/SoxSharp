@@ -105,6 +105,10 @@ namespace SoxSharp.Effects.Types
           case PositionFrom.Last:
             position.Add("+");
             break;
+
+          default:
+            // Do nothing;
+            break;
         }
       }
 

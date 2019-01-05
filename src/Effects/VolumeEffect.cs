@@ -93,6 +93,10 @@ namespace SoxSharp.Effects
 
             effectArgs.Add("dB");
             break;
+
+          default:
+            // Do nothing.
+            break;
         }
       }
 

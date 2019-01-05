@@ -79,6 +79,11 @@ namespace SoxSharp.Effects
 
             effectArgs.Add("-2");
             break;
+
+          default:
+
+            // Do nothing.
+            break;
         }
       }
 
